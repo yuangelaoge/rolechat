@@ -274,7 +274,7 @@ class EditMessageTest {
             engine.send("room", "新问题")
             advanceUntilIdle()
             val nextA = requests[if (editDuringB) 2 else 1]
-            assertTrue(nextA.messages.any { it == PromptMessage("assistant", manual.text) })
+            assertTrue(nextA.messages.any { it == PromptMessage("assistant", "【${manual.senderName}】${manual.text}") })
             assertFalse(nextA.messages.any { it.content.contains("原来的") || it.content.contains("过期") })
             assertEquals(manual, store.snapshot().messages.single { it.id == target.id })
         }

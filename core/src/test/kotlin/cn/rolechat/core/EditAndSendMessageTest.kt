@@ -122,7 +122,7 @@ class EditAndSendMessageTest {
             appended.forEach { assertEquals(it.text, speech.text[it.id]) }
             gateway.requests.forEach { request ->
                 assertTrue(request.messages.first().content.contains("原发送者：过去的 a（AI 角色）"))
-                assertTrue(request.messages.contains(PromptMessage("user", "【本轮重新发送】\n【过去的 a】人工修正的场景")))
+                assertTrue(request.messages.contains(PromptMessage("assistant", "【本轮重新发送】\n【过去的 a】人工修正的场景")))
                 assertFalse(request.messages.any { it.content.contains(later.text) })
                 assertFalse(request.messages.any { it.content.contains("旧 COT") || it.content.contains("旧提取") || it.content.contains("其他会话秘密") })
             }
@@ -146,7 +146,7 @@ class EditAndSendMessageTest {
             advanceUntilIdle()
             assertEquals(listOf("a", "a-B"), gateway.requests.map { it.model.model })
             assertEquals(gateway.requests.first().messages, gateway.requests.last().messages)
-            assertEquals(listOf(PromptMessage("assistant", "【本轮重新发送】\n修改后的 assistant 正文")),
+            assertEquals(listOf(PromptMessage("assistant", "【本轮重新发送】\n【旧署名】修改后的 assistant 正文")),
                 gateway.requests.first().messages.drop(1))
             assertTrue(gateway.requests.first().messages.first().content.contains("这条是你自己的发言，请以此自然继续说"))
             assertEquals("续答", gateway.requests.last().prefix)
@@ -180,7 +180,7 @@ class EditAndSendMessageTest {
             assertFalse(contents.contains(hidden.text))
             assertFalse(contents.contains(foreign.text))
             assertFalse(contents.contains(visible.text))
-            assertTrue(request.messages.contains(PromptMessage("user", "【本轮重新发送】\n【a】本次明确分享的消息")))
+            assertTrue(request.messages.contains(PromptMessage("assistant", "【本轮重新发送】\n【a】本次明确分享的消息")))
             assertTrue(request.messages.first().content.contains("此群身份背景"))
         }
         assertEquals(target.createdAt, store.snapshot().messages.first().createdAt)

@@ -622,7 +622,8 @@ class ChatEngine(
         }
         val system = buildString {
             append("你正在一个聊天会话中扮演「${actor.name}」。只以自己的身份发言，不代替其他成员说话。")
-            append("带发送者标记的消息来自会话中的其他参与者。\n")
+            append("历史中所有 AI 角色的台词（包括你自己和场景角色）都使用 assistant，并标注原发送者姓名；assistant 不代表这些话全是你说的。请按发送者标记区分人物，user 中的真人发言属于用户。\n")
+            append("你本次只输出自己的正文，不重复历史中的发送者标记；若正在接续未完成正文，直接从断点继续。\n")
             world?.prompt?.takeIf { it.isNotBlank() }?.let { append("\n共同世界观：\n$it\n") }
             append("\n当前会话中的真人用户（不是你，也不是其他 AI 角色）：\n")
             append("名字：${room.userName.trim().ifBlank { "我" }}\n")
@@ -689,10 +690,13 @@ class ChatEngine(
             val marker = (if (index == triggerIndex) "【本轮重新发送】\n" else "") +
                 (if (index == replyIndex) "【本次回应】\n" else "")
             if (message.isDirector) PromptMessage("user", marker + message.contextText())
-            else if (message.characterId == actor.id) PromptMessage("assistant", marker + message.text)
-            else if (smart) PromptMessage("user", marker +
-                "【${if (message.characterId == null) "真人用户" else "AI 角色"} ID=${message.characterId ?: "human"} 名字=${message.senderName}】${message.text}")
-            else PromptMessage("user", marker + "【${message.senderName}】${message.text}")
+            else {
+                val role = if (message.characterId != null) "assistant" else "user"
+                val sender = if (smart)
+                    "【${if (message.characterId == null) "真人用户" else "AI 角色"} ID=${message.characterId ?: "human"} 名字=${message.senderName}】"
+                else "【${message.senderName}】"
+                PromptMessage(role, marker + sender + message.text)
+            }
         }
     }
 

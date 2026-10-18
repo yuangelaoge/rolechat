@@ -125,7 +125,7 @@ class CompressionEngineTest {
         assertTrue(request.messages[2].content.contains("【本轮重新发送】"))
         assertTrue(request.messages[2].content.contains("【本次回应】"))
         assertTrue(request.messages[2].content.contains(source.text))
-        assertEquals("user", request.messages[2].role)
+        assertEquals("assistant", request.messages[2].role)
         assertTrue(request.messages.first().content.contains("本轮原始真人要求是以下历史第 1 条"))
         assertTrue(request.messages.first().content.contains("你本次回应以下历史第 2 条"))
         assertFalse(request.messages.first().content.contains(original.text))

@@ -14,6 +14,26 @@ class SiliconFlowGatewayTest {
         ModelConfig(providerId = "test", model = "any-model", thinking = ThinkingMode.ON), provider,
         listOf(PromptMessage("system", "角色系统"), PromptMessage("user", "你好")), prefix
     )
+    @Test fun consecutiveNamedAssistantMessagesStaySeparateAndPrefixStaysVerbatim() {
+        val history = listOf(PromptMessage("system", "只扮演小萱"), PromptMessage("user", "【林川】你们讨论一下"),
+            PromptMessage("assistant", "【小萱】我觉得可以"), PromptMessage("assistant", "【沈禾】我有不同意见"),
+            PromptMessage("assistant", "【场景】第二天早晨"))
+        for (mode in PrefixMode.entries) {
+            val body = SiliconFlowGateway.requestJson(request(Provider(prefixMode = mode), "我想到").copy(messages = history))
+            val sent = body["messages"]!!.jsonArray.map { it.jsonObject }
+            assertEquals(history.map { it.role }, sent.take(history.size).map { it["role"]!!.jsonPrimitive.content })
+            assertEquals(history.map { it.content }, sent.take(history.size).map { it["content"]!!.jsonPrimitive.content })
+            if (mode == PrefixMode.SILICONFLOW) {
+                assertEquals(history.size, sent.size)
+                assertEquals("我想到", body["prefix"]!!.jsonPrimitive.content)
+            } else {
+                assertEquals(history.size + 1, sent.size)
+                assertEquals("assistant", sent.last()["role"]!!.jsonPrimitive.content)
+                assertEquals("我想到", sent.last()["content"]!!.jsonPrimitive.content)
+            }
+        }
+    }
+
     @Test fun siliconFlowPrefixIsTopLevelWithoutDuplicateAssistant() {
         val body = SiliconFlowGateway.requestJson(request(prefix = "没写完的"))
         assertEquals("没写完的", body["prefix"]!!.jsonPrimitive.content)

@@ -73,7 +73,7 @@ class ReplyOutputSourceTest {
 
         engine.send("room", "继续")
         advanceUntilIdle()
-        assertTrue(gateway.requests[2].messages.any { it == PromptMessage("assistant", reply.text) })
+        assertTrue(gateway.requests[2].messages.any { it == PromptMessage("assistant", "【${reply.senderName}】${reply.text}") })
         assertTrue(gateway.requests.all { request -> request.messages.none {
             it.content.contains("A 的独立思考") || it.content.contains("content") || it.content.contains("干扰前缀")
         } })

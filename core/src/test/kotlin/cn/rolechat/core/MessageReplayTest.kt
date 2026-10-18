@@ -134,7 +134,7 @@ class MessageReplayTest {
         assertEquals(listOf("previous", "question"), reply.contextMessageIds)
         assertEquals(before.messages.filterNot { it.id == target.id }, store.snapshot().messages.filterNot { it.id == target.id })
         assertEquals(listOf("a"), gateway.requests.map { it.model.model })
-        assertEquals(listOf(PromptMessage("assistant", "旧的可见回答"), PromptMessage("user", "【我】当时的问题")), gateway.requests.single().messages.drop(1))
+        assertEquals(listOf(PromptMessage("assistant", "【${previous.senderName}】旧的可见回答"), PromptMessage("user", "【我】当时的问题")), gateway.requests.single().messages.drop(1))
         assertEquals(listOf(target.id), speech.starts)
         assertEquals(listOf(target.id), speech.finishes)
         assertEquals("全新的正文", speech.text[target.id])
@@ -149,8 +149,8 @@ class MessageReplayTest {
         engine.send("room", "继续正常聊天")
         advanceUntilIdle()
         val next = gateway.requests.last().messages
-        assertTrue(next.contains(PromptMessage("assistant", previous.text)))
-        assertTrue(next.contains(PromptMessage("assistant", reply.text)))
+        assertTrue(next.contains(PromptMessage("assistant", "【${previous.senderName}】${previous.text}")))
+        assertTrue(next.contains(PromptMessage("assistant", "【${reply.senderName}】${reply.text}")))
         assertFalse(next.any { it.content.contains("唯一标记") || it.content.contains("目标旧") || it.content.contains("不能进入历史的思考") })
         assertEquals(previous, store.snapshot().messages.single { it.id == previous.id })
     }

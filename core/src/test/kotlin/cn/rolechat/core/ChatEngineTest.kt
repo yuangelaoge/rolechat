@@ -45,6 +45,44 @@ class ChatEngineTest {
         override fun stop(roomMessageIds: Set<String>) { stops += roomMessageIds }
     }
 
+    @Test fun allAiHistoryUsesNamedAssistantInEveryModeAndDualContinuationKeepsRawPrefix() = runTest {
+        for (mode in ReplyMode.entries) for (direct in listOf(false, true)) {
+            val a = actor("a", true).copy(name = "小萱")
+            val history = listOf(
+                ChatMessage(id = "human", roomId = "room", senderName = "林川", text = "原来的问题"),
+                ChatMessage(id = "own", roomId = "room", characterId = "a", senderName = "小萱旧名", text = "我先说"),
+                ChatMessage(id = "peer", roomId = "room", characterId = "deleted-peer", senderName = "沈禾", text = "我的意见不同"),
+                ChatMessage(id = "scene", roomId = "room", characterId = "scene", senderName = "场景", text = "第二天早晨", messageStyle = MessageStyle.SCENE)
+            )
+            val room = ChatRoom(id = "room", direct = direct, mode = mode, userName = "林川",
+                members = listOf(Member("a", 0, true)))
+            val store = StateStore(state(listOf(a), room = room, messages = history))
+            val gateway = FakeGateway {
+                emit(StreamEvent.Text(if (it.model.model == "a") "想到后面被截断" else "你了"))
+            }
+            val router = object : TurnRouter {
+                override suspend fun decide(request: TurnRoutingRequest) = RoutingDecision(RoutingAction.WAIT_USER)
+            }
+            ChatEngine(store, gateway, this, router = router).send("room", "继续", setOf("a"))
+            advanceUntilIdle()
+            assertEquals(2, gateway.requests.size)
+            gateway.requests.forEach { request ->
+                history.forEach { original ->
+                    val sent = request.messages.single { it.role != "system" && it.content.endsWith(original.text) }
+                    assertEquals(if (original.characterId == null) "user" else "assistant", sent.role)
+                    assertTrue(sent.content.contains(original.senderName))
+                    if (mode == ReplyMode.SMART && !direct && original.characterId != null)
+                        assertTrue(sent.content.contains("ID=${original.characterId}"))
+                }
+                assertTrue(request.messages.first().content.contains("assistant 不代表这些话全是你说的"))
+            }
+            assertEquals(gateway.requests[0].messages, gateway.requests[1].messages)
+            assertEquals("想到", gateway.requests[1].prefix)
+            assertEquals("想到你了", store.snapshot().messages.last().text)
+            assertEquals(history, store.snapshot().messages.take(history.size))
+        }
+    }
+
     @Test fun sequentialRepliesSeeEarlierCompletedReplies() = runTest {
         val gate = CompletableDeferred<Unit>()
         val gateway = FakeGateway { request ->
@@ -59,7 +97,7 @@ class ChatEngineTest {
         gate.complete(Unit)
         advanceUntilIdle()
         assertEquals(listOf("a", "b"), gateway.requests.map { it.model.model })
-        assertTrue(gateway.requests[1].messages.any { it.role == "user" && it.content == "【a】reply-a" })
+        assertTrue(gateway.requests[1].messages.any { it.role == "assistant" && it.content == "【a】reply-a" })
         assertTrue(engine.busyRooms.value.isEmpty())
     }
 
@@ -93,7 +131,7 @@ class ChatEngineTest {
         val messages = listOf(
             ChatMessage(id = "old", roomId = "room", text = "before-join-secret", createdAt = 99),
             ChatMessage(id = "private", roomId = "elsewhere", text = "other-room-secret", createdAt = 200),
-            ChatMessage(id = "own", roomId = "room", characterId = "a", text = "own-visible", createdAt = 200),
+            ChatMessage(id = "own", roomId = "room", characterId = "a", senderName = "a", text = "own-visible", createdAt = 200),
             ChatMessage(id = "other", roomId = "room", characterId = "b", senderName = "b", text = "peer-visible", createdAt = 201))
         val store = StateStore(state(listOf(a, actor("b")), room = room, messages = messages))
         val gateway = FakeGateway { emit(StreamEvent.Text("ok")) }
@@ -104,8 +142,8 @@ class ChatEngineTest {
         val all = request.messages.joinToString { it.content }
         assertTrue("a-private-prompt" in all)
         listOf("b-private-prompt", "before-join-secret", "other-room-secret").forEach { assertFalse(it in all) }
-        assertTrue(request.messages.any { it.role == "assistant" && it.content == "own-visible" })
-        assertTrue(request.messages.any { it.role == "user" && it.content == "【b】peer-visible" })
+        assertTrue(request.messages.any { it.role == "assistant" && it.content == "【a】own-visible" })
+        assertTrue(request.messages.any { it.role == "assistant" && it.content == "【b】peer-visible" })
     }
 
     @Test fun allMentionsBypassProbabilityCooldownAndInitialCap() = runTest {
@@ -186,7 +224,7 @@ class ChatEngineTest {
         assertEquals(listOf("A 的思考，仅供查看", "B 的思考"), reply.segments.map { it.reasoning })
         engine.send("room", "下一句")
         advanceUntilIdle()
-        assertTrue(gateway.requests[2].messages.any { it.role == "assistant" && it.content == reply.text })
+        assertTrue(gateway.requests[2].messages.any { it.role == "assistant" && it.content == "【${reply.senderName}】${reply.text}" })
         gateway.requests.forEach { request ->
             assertFalse(request.messages.any { "思考" in it.content || "仅供查看" in it.content })
             assertFalse(request.prefix.contains("思考"))
@@ -403,8 +441,8 @@ class ChatEngineTest {
             assertEquals(reply.text, speech.text[reply.id])
             gateway.requests.forEach { request ->
                 assertEquals("system", request.messages.first().role)
-                assertTrue(request.messages.any { it.role == "assistant" && it.content == "自己的上一句" })
-                assertTrue(request.messages.any { it.role == "user" && it.content == "【别的角色】其他人的上一句" })
+                assertTrue(request.messages.any { it.role == "assistant" && it.content == "【a】自己的上一句" })
+                assertTrue(request.messages.any { it.role == "assistant" && it.content == "【别的角色】其他人的上一句" })
             }
             captured += gateway.requests.toList()
         }
